@@ -120,8 +120,10 @@ void Processor::SetFrequency(int8_t lfo_no) {
   int16_t pitch = AdcValuesToPitch(ui_->coarse(lfo_no),
 				   ui_->fine(lfo_no),
 				   cv);
-  if (ui_->bank() == BANK_RANDOM)
-    pitch += 1 * kOctave;
+
+  // on individual-wavebank firmware, this pitch shift should be deactivated because it can be confusing.
+  //if (ui_->bank(lfo_no) == BANK_RANDOM)
+  //  pitch += 1 * kOctave;
 
   // set pitch
   if (!synced_[lfo_no] ||
@@ -291,18 +293,34 @@ void Processor::Process() {
   case FEAT_MODE_LAST: break;	// to please the compiler
   }
 
-  uint8_t offset =
-    ui_->bank() == BANK_CLASSIC ? SHAPE_TRAPEZOID :
-    ui_->bank() == BANK_RANDOM ? SHAPE_RANDOM_STEP :
-    42;
+  LfoShape shape[4];
+  for (int i=0; i<4; i++) {
+    int ui_shape = ui_->shape();
+    uint8_t offset = 0;
+    switch (ui_->bank(i)) {
+    case BANK_CLASSIC:
+      offset = SHAPE_TRAPEZOID;
+      break;
 
-  int s = ((ui_->shape() + waveform_offset_) % 4) + offset;
-  LfoShape shape = static_cast<LfoShape>(s);
+    case BANK_RANDOM:
+      // RANDOM is not affected by panel switches, but by random waveform setting
+      ui_shape = ui_->random_waveform_index(i);
+      offset = SHAPE_RANDOM_STEP;
+      break;
 
-  // exception: in quad mode, trapezoid becomes square
-  if (ui_->feat_mode() == FEAT_MODE_QUAD &&
-      shape == SHAPE_TRAPEZOID)
-    shape = SHAPE_SQUARE;
+    default:
+      offset = 42;
+      break;
+    }
+
+    int s = ((ui_shape + waveform_offset_) % 4) + offset;
+    shape[i] = static_cast<LfoShape>(s);
+
+    // exception: in quad mode, trapezoid becomes square
+    if (ui_->feat_mode() == FEAT_MODE_QUAD &&
+        shape[i] == SHAPE_TRAPEZOID)
+      shape[i] = SHAPE_SQUARE;
+  }
 
   int32_t sample1 = 0;
   int32_t sample2 = 0;
@@ -317,7 +335,7 @@ void Processor::Process() {
     }
 
     sample1 += lfo_[i].ComputeSampleShape(SHAPE_SINE);
-    sample2 += lfo_[i].ComputeSampleShape(shape);
+    sample2 += lfo_[i].ComputeSampleShape(shape[i]);
     gain += lfo_[i].level();
 
     if (ui_->feat_mode() == FEAT_MODE_QUAD) {

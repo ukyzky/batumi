@@ -40,7 +40,8 @@ using namespace stmlib;
 
 const int32_t kLongPressDuration = 500;
 const int32_t kVeryLongPressDuration = 2000;
-const int32_t kPotMoveThreshold = 1 << (16 - 10);  // 10 bits
+const int32_t kClearSettingsLongPressDuration = 4000;
+const int32_t kPotMoveThreshold = 1 << (16 - 9);  // 9 bits
 const uint16_t kCatchupThreshold = 1 << 10;
 
 stmlib::Storage<0x8020000, 4> storage;
@@ -54,13 +55,7 @@ void Ui::Init(Adc *adc) {
 
   if (!storage.ParsimoniousLoad(&feat_mode_, SETTINGS_SIZE, &version_token_)) {
     feat_mode_ = FEAT_MODE_FREE;
-    bank_ = BANK_CLASSIC;
-    for (int i=0; i<4; i++) {
-      pot_fine_value_[i] = 0;
-      pot_phase_value_[i] = UINT16_MAX;
-      pot_level_value_[i] = UINT16_MAX;
-      pot_atten_value_[i] = UINT16_MAX;
-    }
+    clearAllHiddenSettings();
   }
 
   // synchronize pots at startup
@@ -81,33 +76,43 @@ void Ui::Poll() {
       queue_.AddEvent(CONTROL_SWITCH, i, 0);
       press_time_[i] = system_clock.milliseconds();
       detect_very_long_press_[i] = false;
+      detect_clear_settings_long_press_[i] = false;
     }
     if (switches_.pressed(i) && press_time_[i]) {
       int32_t pressed_time = system_clock.milliseconds() - press_time_[i];
 
-      if (!detect_very_long_press_[i]) {
-        if (pressed_time > kLongPressDuration) {
-          queue_.AddEvent(CONTROL_SWITCH, i, pressed_time);
-          detect_very_long_press_[i] = true;
+      if (!detect_clear_settings_long_press_[i]) {
+        if (!detect_very_long_press_[i]) {
+          if (pressed_time > kLongPressDuration) {
+            queue_.AddEvent(CONTROL_SWITCH, i, pressed_time);
+            detect_very_long_press_[i] = true;
+          }
+        } else {
+          if (pressed_time > kVeryLongPressDuration) {
+            queue_.AddEvent(CONTROL_SWITCH, i, pressed_time);
+            detect_very_long_press_[i] = false;
+            detect_clear_settings_long_press_[i] = true;
+          }
         }
       } else {
-        if (pressed_time > kVeryLongPressDuration) {
+        if (pressed_time > kClearSettingsLongPressDuration) {
           queue_.AddEvent(CONTROL_SWITCH, i, pressed_time);
           detect_very_long_press_[i] = false;
+          detect_clear_settings_long_press_[i] = false;
           press_time_[i] = 0;
         }
       }
     }
-    
+
     if (switches_.released(i) &&
         press_time_[i] != 0 &&
-        !detect_very_long_press_[i]) {
+        !detect_very_long_press_[i] &&
+        !detect_clear_settings_long_press_[i]) {
       queue_.AddEvent(
           CONTROL_SWITCH,
           i,
           system_clock.milliseconds() - press_time_[i] + 1);
       press_time_[i] = 0;
-      detect_very_long_press_[i] = false;
     }
   }
 
@@ -144,15 +149,52 @@ void Ui::Poll() {
     break;
 
   case UI_MODE_NORMAL:
+    {
+      animation_counter_++;
+      bool flash = (animation_counter_ & 64) &&
+        (animation_counter_ & 32) &&
+        (animation_counter_ & 16);
+      for (uint8_t i=0; i<kNumLeds; i++) {
+        if (catchup_state_[i])
+	  leds_.set(i, i==feat_mode_ ? !flash : flash);
+        else
+	  leds_.set(i, i == feat_mode_);
+      }
+    }
+    break;
+
+  case UI_MODE_RANDOM_WAVEFORM_SELECT:
+    {
+      const uint16_t led_on_period = 0x80;
+      bool flash_base = !(animation_counter_ & led_on_period);
+      uint8_t setting_val_count = (animation_counter_ / (led_on_period * 2)) % 4;
+
+      for (uint8_t i=0; i<kNumLeds; i++) {
+	if (flash_base &&
+	    bank_[i] == BANK_RANDOM &&
+	    (random_waveform_index_[i] >= setting_val_count)) {
+	  leds_.set(i, true);
+	}
+	else {
+	  leds_.set(i, false);
+	}
+      }
+    }
     animation_counter_++;
-    bool flash = (animation_counter_ & 64) &&
-      (animation_counter_ & 32) &&
-      (animation_counter_ & 16);
-    for (uint8_t i=0; i<kNumLeds; i++) {
-      if (catchup_state_[i])
-	leds_.set(i, i==feat_mode_ ? !flash : flash);
-      else
-	leds_.set(i, i == feat_mode_);
+    break;
+  case UI_MODE_SPLASH_FOR_RANDOM_WAVEFORM_SELECT:
+    {
+      const int num_blink = 2;
+      if (animation_counter_ % 100 == 0) {
+        for (int i=0; i<kNumLeds; i++)
+	  leds_.set(i, ((animation_counter_ / 100) % 2) == 0);
+      }
+      animation_counter_++;
+
+      if (animation_counter_ >= (num_blink * 200) - 1) {
+	mode_ = UI_MODE_RANDOM_WAVEFORM_SELECT;
+	animation_counter_ = 0;
+      }
     }
     break;
   }
@@ -174,11 +216,17 @@ void Ui::OnSwitchReleased(const Event& e) {
   case SWITCH_WAV2:
     break;
   case SWITCH_SELECT:
-    if (e.data > kVeryLongPressDuration) {
-      bank_ = static_cast<WaveBank>((bank_ + 1) % BANK_LAST);
+    if (e.data > kClearSettingsLongPressDuration) {
+      // Clear all hidden settings and save to ROM
+      clearAllHiddenSettings();
       animation_counter_ = 0;
       mode_ = UI_MODE_SPLASH;
       storage.ParsimoniousSave(&feat_mode_, SETTINGS_SIZE, &version_token_);
+    } else if (e.data > kVeryLongPressDuration) {
+      if (mode_ != UI_MODE_RANDOM_WAVEFORM_SELECT) {
+        mode_ = UI_MODE_SPLASH_FOR_RANDOM_WAVEFORM_SELECT;
+        animation_counter_ = 0;
+      }
     } else if (e.data > kLongPressDuration) {
       if (mode_ == UI_MODE_NORMAL) {
 	mode_ = UI_MODE_ZOOM;
@@ -193,9 +241,12 @@ void Ui::OnSwitchReleased(const Event& e) {
     } else {
       switch (mode_) {
       case UI_MODE_SPLASH:
+      case UI_MODE_SPLASH_FOR_RANDOM_WAVEFORM_SELECT:
 	break;
       case UI_MODE_ZOOM:
+      case UI_MODE_RANDOM_WAVEFORM_SELECT:
 	// detect if pots have moved during zoom
+	//TODOtrg : merge same routines above
 	for (int i=0; i<4; i++)
 	  if (abs(pot_value_[i] - pot_coarse_value_[i]) > kCatchupThreshold) {
 	    catchup_state_[i] = true;
@@ -224,6 +275,7 @@ void Ui::OnSwitchReleased(const Event& e) {
 void Ui::OnPotChanged(const Event& e) {
   switch (mode_) {
   case UI_MODE_SPLASH:
+  case UI_MODE_SPLASH_FOR_RANDOM_WAVEFORM_SELECT:
     break;
   case UI_MODE_ZOOM:
     switch (e.control_id) {
@@ -250,6 +302,37 @@ void Ui::OnPotChanged(const Event& e) {
       catchup_state_[e.control_id] = false;
     }
     break;
+
+  case UI_MODE_RANDOM_WAVEFORM_SELECT:
+    selectRandomWaveformFromPot(e.control_id, e.data);
+    break;
+  }
+}
+
+void Ui::selectRandomWaveformFromPot(uint16_t id, int32_t potVal)
+{
+  uint8_t pos = static_cast<uint16_t>(potVal) / 13107; // (65535 / 5)
+  CONSTRAIN(pos, 0, 4);
+
+  if (pos <= 0) {
+    random_waveform_index_[id] = 0;
+    bank_[id] = BANK_CLASSIC;
+  }
+  else {
+    random_waveform_index_[id] = pos - 1;
+    bank_[id] = BANK_RANDOM;
+  }
+}
+
+void Ui::clearAllHiddenSettings()
+{
+  for (int i=0; i<4; i++) {
+    random_waveform_index_[i] = 0;
+    bank_[i] = BANK_CLASSIC;
+    pot_fine_value_[i] = 0;
+    pot_phase_value_[i] = UINT16_MAX;
+    pot_level_value_[i] = UINT16_MAX;
+    pot_atten_value_[i] = UINT16_MAX;
   }
 }
 

@@ -37,6 +37,8 @@
 #include "drivers/leds.h"
 #include "drivers/switches.h"
 
+#include "lfo.h"
+
 namespace batumi {
 
 const uint8_t kFinePotDivider = 8;
@@ -53,6 +55,8 @@ enum UiMode {
   UI_MODE_SPLASH,
   UI_MODE_NORMAL,
   UI_MODE_ZOOM,
+  UI_MODE_RANDOM_WAVEFORM_SELECT,
+  UI_MODE_SPLASH_FOR_RANDOM_WAVEFORM_SELECT
 };
 
 enum WaveBank {
@@ -93,9 +97,13 @@ class Ui {
 
   inline FeatureMode feat_mode() const { return feat_mode_; }
   inline UiMode mode() const { return mode_; }
-  inline WaveBank bank() const { return bank_; }
+  inline WaveBank bank(uint8_t channel) const { return bank_[channel]; }
   inline uint8_t shape() const {
     return (switches_.pressed(2) << 1) | switches_.pressed(1);
+  }
+  inline uint8_t random_waveform_index(uint8_t channel) const
+  {
+    return random_waveform_index_[channel];
   }
   inline bool sync_mode() const {
     return switches_.pressed(0);
@@ -106,12 +114,16 @@ class Ui {
   void OnSwitchReleased(const stmlib::Event& e);
   void OnPotChanged(const stmlib::Event& e);
 
+  void selectRandomWaveformFromPot(uint16_t id, int32_t val);
+  void clearAllHiddenSettings();
+
   uint16_t pot_value_[4];
   uint16_t pot_filtered_value_[4];
   uint16_t pot_coarse_value_[4];
   uint8_t last_touched_pot_;
   uint32_t press_time_[kNumSwitches];
   bool detect_very_long_press_[kNumSwitches];
+  bool detect_clear_settings_long_press_[kNumSwitches];
   bool catchup_state_[4];
 
   int32_t animation_counter_;
@@ -124,8 +136,9 @@ class Ui {
   UiMode mode_;
 
   FeatureMode feat_mode_;
-  WaveBank bank_;
-  uint8_t padding[2];
+  uint8_t padding[3];
+  WaveBank bank_[4];
+  uint8_t random_waveform_index_[4];
   uint16_t pot_fine_value_[4];
   uint16_t pot_level_value_[4];
   uint16_t pot_atten_value_[4];
@@ -134,6 +147,7 @@ class Ui {
   enum SettingsSize {
     SETTINGS_SIZE = sizeof(feat_mode_) +
     sizeof(bank_) +
+    sizeof(random_waveform_index_) +
     sizeof(pot_fine_value_) +
     sizeof(pot_phase_value_) +
     sizeof(pot_level_value_) +
