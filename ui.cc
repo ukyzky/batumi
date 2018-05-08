@@ -42,6 +42,7 @@ const int32_t kLongPressDuration = 500;
 const int32_t kVeryLongPressDuration = 2000;
 const int32_t kClearSettingsLongPressDuration = 4000;
 const int32_t kPotMoveThreshold = 1 << (16 - 9);  // 9 bits
+const int32_t kPotMoveThresholdOnSelectingRandomWaveform = 1 << (16 - 5);  // 5 bits
 const uint16_t kCatchupThreshold = 1 << 10;
 
 stmlib::Storage<0x8020000, 4> storage;
@@ -122,8 +123,15 @@ void Ui::Poll() {
     int32_t value = (31 * pot_filtered_value_[i] + adc_value) >> 5;
     pot_filtered_value_[i] = value;
     int32_t current_value = static_cast<int32_t>(pot_value_[i]);
-    if (value >= current_value + kPotMoveThreshold ||
-	value <= current_value - kPotMoveThreshold) {
+
+    int32_t potMoveThreshold = kPotMoveThreshold;
+    if (mode_ == UI_MODE_RANDOM_WAVEFORM_SELECT)
+    {
+      potMoveThreshold = kPotMoveThresholdOnSelectingRandomWaveform;
+    }
+
+    if (value >= current_value + potMoveThreshold ||
+	value <= current_value - potMoveThreshold) {
       queue_.AddEvent(CONTROL_POT, i, value);
       pot_value_[i] = value;
     }
