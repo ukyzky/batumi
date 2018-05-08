@@ -41,8 +41,14 @@ using namespace stmlib;
 const int32_t kLongPressDuration = 500;
 const int32_t kVeryLongPressDuration = 2000;
 const int32_t kClearSettingsLongPressDuration = 4000;
-const int32_t kPotMoveThreshold = 1 << (16 - 9);  // 9 bits
-const int32_t kPotMoveThresholdOnSelectingRandomWaveform = 1 << (16 - 5);  // 5 bits
+
+// These threshold should be as large as possible
+// to prevent the setting values to jump to the current slider position.
+// It depends on required value resolution on each mode.
+const int32_t kPotMoveThreshold = 1 << (16 - 8);  // 8 bits
+const int32_t kPotMoveThresholdOnZoomMode = 1 << (16 - 6);  // 6 bits
+const int32_t kPotMoveThresholdOnRandomWaveformSelectMode = 1 << (16 - 5);  // 5 bits
+
 const uint16_t kCatchupThreshold = 1 << 10;
 
 stmlib::Storage<0x8020000, 4> storage;
@@ -118,17 +124,19 @@ void Ui::Poll() {
   }
 
   // filter the pot values and emit events when changed
+
+  // Decide pot move threshold
+  int32_t potMoveThreshold = kPotMoveThreshold;
+  if (mode_ == UI_MODE_ZOOM)
+    potMoveThreshold = kPotMoveThresholdOnZoomMode;
+  else if (mode_ == UI_MODE_RANDOM_WAVEFORM_SELECT)
+    potMoveThreshold = kPotMoveThresholdOnRandomWaveformSelectMode;
+
   for (uint8_t i = 0; i < 4; ++i) {
     uint16_t adc_value = adc_->pot(i);
     int32_t value = (31 * pot_filtered_value_[i] + adc_value) >> 5;
     pot_filtered_value_[i] = value;
     int32_t current_value = static_cast<int32_t>(pot_value_[i]);
-
-    int32_t potMoveThreshold = kPotMoveThreshold;
-    if (mode_ == UI_MODE_RANDOM_WAVEFORM_SELECT)
-    {
-      potMoveThreshold = kPotMoveThresholdOnSelectingRandomWaveform;
-    }
 
     if (value >= current_value + potMoveThreshold ||
 	value <= current_value - potMoveThreshold) {
@@ -239,12 +247,7 @@ void Ui::OnSwitchReleased(const Event& e) {
       if (mode_ == UI_MODE_NORMAL) {
 	mode_ = UI_MODE_ZOOM;
       } else if (mode_ == UI_MODE_ZOOM) {
-	for (int i=0; i<4; i++)
-	  if (abs(pot_value_[i] - pot_coarse_value_[i]) > kCatchupThreshold) {
-	    catchup_state_[i] = true;
-	  }
-	mode_ = UI_MODE_NORMAL;
-	storage.ParsimoniousSave(&feat_mode_, SETTINGS_SIZE, &version_token_);
+	gotoNormalModeWithCatchupAndSaving();
       }
     } else {
       switch (mode_) {
@@ -253,25 +256,13 @@ void Ui::OnSwitchReleased(const Event& e) {
 	break;
       case UI_MODE_ZOOM:
       case UI_MODE_RANDOM_WAVEFORM_SELECT:
-	// detect if pots have moved during zoom
-	//TODOtrg : merge same routines above
-	for (int i=0; i<4; i++)
-	  if (abs(pot_value_[i] - pot_coarse_value_[i]) > kCatchupThreshold) {
-	    catchup_state_[i] = true;
-	  }
-	mode_ = UI_MODE_NORMAL;
-	storage.ParsimoniousSave(&feat_mode_, SETTINGS_SIZE, &version_token_);
+	gotoNormalModeWithCatchupAndSaving();
 	break;
 
       case UI_MODE_NORMAL:
 	feat_mode_ = static_cast<FeatureMode>((feat_mode_ + 1) % FEAT_MODE_LAST);
 	// reset all alternate values
-	for (int i=0; i<4; i++) {
-	  pot_fine_value_[i] = UINT16_MAX / 2;
-	  pot_level_value_[i] = UINT16_MAX;
-	  pot_atten_value_[i] = UINT16_MAX;
-	  pot_phase_value_[i] = UINT16_MAX;
-	}
+	clearZoomSettings();
 	storage.ParsimoniousSave(&feat_mode_, SETTINGS_SIZE, &version_token_);
 	break;
       }
@@ -319,7 +310,19 @@ void Ui::OnPotChanged(const Event& e) {
 
 void Ui::selectRandomWaveformFromPot(uint16_t id, int32_t potVal)
 {
-  uint8_t pos = static_cast<uint16_t>(potVal) / 13107; // (65535 / 5)
+  static const uint16_t tbl_waveformSelectionThreshold[] = {
+    9500, 26214, 42312, 60000
+  };
+  static const int size_table = sizeof(tbl_waveformSelectionThreshold) / sizeof(tbl_waveformSelectionThreshold[0]);
+
+  uint8_t pos = 4;
+  for (uint8_t i=0; i<size_table; i++) {
+    if (potVal < tbl_waveformSelectionThreshold[i]) {
+      pos = i;
+      break;
+    }
+  }
+
   CONSTRAIN(pos, 0, 4);
 
   if (pos <= 0) {
@@ -332,16 +335,35 @@ void Ui::selectRandomWaveformFromPot(uint16_t id, int32_t potVal)
   }
 }
 
+void Ui::clearZoomSettings()
+{
+  for (int i=0; i<4; i++) {
+    pot_fine_value_[i] = UINT16_MAX / 2;
+    pot_phase_value_[i] = UINT16_MAX;
+    pot_level_value_[i] = UINT16_MAX;
+    pot_atten_value_[i] = UINT16_MAX;
+  }
+}
+
 void Ui::clearAllHiddenSettings()
 {
   for (int i=0; i<4; i++) {
     random_waveform_index_[i] = 0;
     bank_[i] = BANK_CLASSIC;
-    pot_fine_value_[i] = 0;
-    pot_phase_value_[i] = UINT16_MAX;
-    pot_level_value_[i] = UINT16_MAX;
-    pot_atten_value_[i] = UINT16_MAX;
   }
+
+  clearZoomSettings();
+}
+
+void Ui::gotoNormalModeWithCatchupAndSaving()
+{
+  for (int i=0; i<4; i++)
+    if (abs(pot_value_[i] - pot_coarse_value_[i]) > kCatchupThreshold) {
+      catchup_state_[i] = true;
+    }
+
+  mode_ = UI_MODE_NORMAL;
+  storage.ParsimoniousSave(&feat_mode_, SETTINGS_SIZE, &version_token_);
 }
 
 void Ui::DoEvents() {

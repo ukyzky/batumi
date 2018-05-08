@@ -115,7 +115,9 @@ class Ui {
   void OnPotChanged(const stmlib::Event& e);
 
   void selectRandomWaveformFromPot(uint16_t id, int32_t val);
+  void clearZoomSettings();
   void clearAllHiddenSettings();
+  void gotoNormalModeWithCatchupAndSaving();
 
   uint16_t pot_value_[4];
   uint16_t pot_filtered_value_[4];
