@@ -45,7 +45,7 @@ const int32_t kVeryLongPressDuration = 2000;
 const int32_t kClearSettingsLongPressDuration = 4000;
 
 // These threshold should be as large as possible
-// to prevent the setting values to jump to the current slider position.
+// to prevent the setting values from jumping to the current slider position.
 // It depends on required value resolution on each mode.
 const int32_t kPotMoveThreshold = 1 << (16 - 8);  // 8 bits
 const int32_t kPotMoveThresholdOnZoomMode = 1 << (16 - 6);  // 6 bits
