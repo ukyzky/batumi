@@ -1,6 +1,8 @@
+// Copyright 2018 Takashi Matsuura.
 // Copyright 2015 Matthias Puech.
 //
-// Author: Matthias Puech (matthias.puech@gmail.com)
+// Original author: Matthias Puech (matthias.puech@gmail.com)
+// Modified by: Takashi Matsuura (fwthesteelleg@gmail.com)
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal

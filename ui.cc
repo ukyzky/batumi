@@ -1,8 +1,10 @@
+// Copyright 2018 Takashi Matsuura.
 // Copyright 2015 Matthias Puech.
 // Copyright 2013 Olivier Gillet.
 //
 // Original author: Olivier Gillet (ol.gillet@gmail.com)
 // Modified by: Matthias Puech (matthias.puech@gmail.com)
+// Modified by: Takashi Matsuura (fwthesteelleg@gmail.com)
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
