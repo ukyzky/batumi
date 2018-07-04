@@ -131,7 +131,7 @@ void Ui::Poll() {
   int32_t potMoveThreshold = kPotMoveThreshold;
   if (mode_ == UI_MODE_ZOOM)
     potMoveThreshold = kPotMoveThresholdOnZoomMode;
-  else if (mode_ == UI_MODE_RANDOM_WAVEFORM_SELECT)
+  else if (mode_ == UI_MODE_WAVEBANK_SELECT)
     potMoveThreshold = kPotMoveThresholdOnRandomWaveformSelectMode;
 
   for (uint8_t i = 0; i < 4; ++i) {
@@ -181,7 +181,7 @@ void Ui::Poll() {
     }
     break;
 
-  case UI_MODE_RANDOM_WAVEFORM_SELECT:
+  case UI_MODE_WAVEBANK_SELECT:
     {
       const uint16_t led_on_period = 0x80;
       bool flash_base = !(animation_counter_ & led_on_period);
@@ -200,17 +200,24 @@ void Ui::Poll() {
     }
     animation_counter_++;
     break;
-  case UI_MODE_SPLASH_FOR_RANDOM_WAVEFORM_SELECT:
+  case UI_MODE_SPLASH_FOR_WAVEBANK_SELECT:
     {
       const int num_blink = 2;
-      if (animation_counter_ % 100 == 0) {
+      const int blink_time_unit = 100;
+      if (animation_counter_ % blink_time_unit == 0) {
+	const int blink_step = (animation_counter_ / blink_time_unit) % 2;
         for (int i=0; i<kNumLeds; i++)
-	  leds_.set(i, ((animation_counter_ / 100) % 2) == 0);
+	  if (i == 0 || i == 3) {
+	    leds_.set(i, (blink_step == 0));
+	  }
+	  else {
+	    leds_.set(i, (blink_step == 1));
+	  }
       }
       animation_counter_++;
 
       if (animation_counter_ >= (num_blink * 200) - 1) {
-	mode_ = UI_MODE_RANDOM_WAVEFORM_SELECT;
+	mode_ = UI_MODE_WAVEBANK_SELECT;
 	animation_counter_ = 0;
       }
     }
@@ -241,8 +248,8 @@ void Ui::OnSwitchReleased(const Event& e) {
       mode_ = UI_MODE_SPLASH;
       storage.ParsimoniousSave(&feat_mode_, SETTINGS_SIZE, &version_token_);
     } else if (e.data > kVeryLongPressDuration) {
-      if (mode_ != UI_MODE_RANDOM_WAVEFORM_SELECT) {
-        mode_ = UI_MODE_SPLASH_FOR_RANDOM_WAVEFORM_SELECT;
+      if (mode_ != UI_MODE_WAVEBANK_SELECT) {
+        mode_ = UI_MODE_SPLASH_FOR_WAVEBANK_SELECT;
         animation_counter_ = 0;
       }
     } else if (e.data > kLongPressDuration) {
@@ -254,10 +261,10 @@ void Ui::OnSwitchReleased(const Event& e) {
     } else {
       switch (mode_) {
       case UI_MODE_SPLASH:
-      case UI_MODE_SPLASH_FOR_RANDOM_WAVEFORM_SELECT:
+      case UI_MODE_SPLASH_FOR_WAVEBANK_SELECT:
 	break;
       case UI_MODE_ZOOM:
-      case UI_MODE_RANDOM_WAVEFORM_SELECT:
+      case UI_MODE_WAVEBANK_SELECT:
 	gotoNormalModeWithCatchupAndSaving();
 	break;
 
@@ -276,7 +283,7 @@ void Ui::OnSwitchReleased(const Event& e) {
 void Ui::OnPotChanged(const Event& e) {
   switch (mode_) {
   case UI_MODE_SPLASH:
-  case UI_MODE_SPLASH_FOR_RANDOM_WAVEFORM_SELECT:
+  case UI_MODE_SPLASH_FOR_WAVEBANK_SELECT:
     break;
   case UI_MODE_ZOOM:
     switch (e.control_id) {
@@ -304,7 +311,7 @@ void Ui::OnPotChanged(const Event& e) {
     }
     break;
 
-  case UI_MODE_RANDOM_WAVEFORM_SELECT:
+  case UI_MODE_WAVEBANK_SELECT:
     selectRandomWaveformFromPot(e.control_id, e.data);
     break;
   }
