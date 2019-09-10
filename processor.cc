@@ -74,6 +74,43 @@ inline uint8_t AdcValuesToDivider(uint16_t pot, int16_t fine, int16_t cv) {
   return div;
 }
 
+inline int8_t AdcValuesToDividerMultiplier(uint16_t pot, int16_t fine, int16_t cv) {
+  int32_t ctrl = pot + cv;
+  CONSTRAIN(ctrl, 0, UINT16_MAX);
+  fine = (5 * static_cast<int32_t>(fine + INT16_MAX / 5)) >> 16;
+  int8_t div = lut_scale_divide_multiply[ctrl >> 8];
+  if (fine > 1) {
+    div -= fine;
+    if (div == 0) {
+      // 2 - 2 => 0 (2,1,-2)
+      div = -2;
+    } else if (div == -1) {
+      // 1 - 2 => -1 (1,-2,-3)
+      div = -3;
+    }
+  } else if (fine == 1) {
+    div -= fine;
+    if (div == 0) {
+      // 1 - 1 => 0 (1,-2)
+      div = -2;
+    }
+  } else if (fine < -1) {
+    div -= fine;
+    if (div == 0) {
+      // -2 - -2 => 0 (-2,1,2)
+      div = 2;
+    }
+  } else if (fine == -1) {
+    div -= fine;
+  }
+  if (div >= -1) {
+    CONSTRAIN(div, 1, 64);
+  } else {
+    CONSTRAIN(div, -64, -2);
+  }
+  return div;
+}
+
 inline uint16_t AdcValuesToPhase(uint16_t pot, int16_t fine, int16_t cv) {
   pot = 65536 - pot;
   int32_t ctrl = pot + cv + fine / 8;
@@ -280,9 +317,23 @@ void Processor::Process() {
     for (int i=1; i<kNumChannels; i++) {
       lfo_[i].link_to(&lfo_[0]);
       int16_t cv = (filtered_cv_[i] * ui_->atten(i)) >> 16;
-      lfo_[i].set_divider(AdcValuesToDivider(ui_->coarse(i),
+      // lfo_[i].set_divider(AdcValuesToDivider(ui_->coarse(i),
+			// 		     ui_->fine(i),
+			// 		     cv));
+      // Expanded: Multiply value in Divide mode.
+      int8_t divMult = AdcValuesToDividerMultiplier(ui_->coarse(i),
 					     ui_->fine(i),
-					     cv));
+					     cv);
+      if (divMult > 1) {
+        lfo_[i].set_multiplier(1);
+        lfo_[i].set_divider(divMult);
+      } else if (divMult < -1) {
+        lfo_[i].set_multiplier(-divMult);
+        lfo_[i].set_divider(1);
+      } else {
+        lfo_[i].set_multiplier(1);
+        lfo_[i].set_divider(1);
+      }
       lfo_[i].set_initial_phase(ui_->phase(i));
       // when 1st channel resets, all other channels reset
       if (!ui_->sync_mode() && reset_triggered_[0]) {

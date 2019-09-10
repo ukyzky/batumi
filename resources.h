@@ -53,6 +53,7 @@ extern const int16_t* waveform_table[];
 extern const uint16_t lut_scale_pitch[];
 extern const uint16_t lut_scale_phase[];
 extern const uint16_t lut_scale_divide[];
+extern const int16_t lut_scale_divide_multiply[];
 extern const uint32_t lut_increments[];
 extern const int16_t wav_sine[];
 extern const int16_t wav_saw10[];
