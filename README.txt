@@ -193,18 +193,18 @@ Batumi custom firmware by ukyzky documentation
 
 File: batumi-aiw-ukyzky-v010.bin
 
-Based on amazing Batumi alternate individual waveform firmware,
+Based on amazing Batumi alternate individual wavebank firmware,
 new feature is:
 
 - In Divide mode, slider can set divide and multiply. center position
   is initial. upper position becomes multiply, and lower position
   becomes divide.
 
-- In Individual Waveform mode, slider can set classic wave and random
+- In Individual Wavebank mode, slider can set classic wave and random
   wave. 4 random wave in upper position and 4 classic wave in lower
   position. Before set waveform in this mode, random waveform is
   decided by jumper/Poti. After set waveform in this mode, jumper/
-  Poti setting is ignored.
+  Poti setting is ignored (judged by each channel).
 
 Special thanks
 --------------
