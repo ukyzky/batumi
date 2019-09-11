@@ -69,7 +69,12 @@ enum WaveBank {
 
 class Ui {
  public:
-  Ui() { }
+  Ui() {
+    classic_waveform_index_[0] = -1;
+    classic_waveform_index_[1] = -1;
+    classic_waveform_index_[2] = -1;
+    classic_waveform_index_[3] = -1;
+  }
   ~Ui() { }
   
   void Init(Adc *adc);
@@ -103,6 +108,11 @@ class Ui {
   inline uint8_t shape() const {
     return (switches_.pressed(2) << 1) | switches_.pressed(1);
   }
+  inline uint8_t shape(uint8_t channel) const {
+    return (classic_waveform_index_[channel] == -1)
+      ? shape()
+      : classic_waveform_index_[channel];
+  }
   inline uint8_t random_waveform_index(uint8_t channel) const
   {
     return random_waveform_index_[channel];
@@ -117,6 +127,7 @@ class Ui {
   void OnPotChanged(const stmlib::Event& e);
 
   void selectRandomWaveformFromPot(uint16_t id, int32_t val);
+  void selectWaveformFromPot(uint16_t id, int32_t val);
   void clearZoomSettings();
   void clearAllHiddenSettings();
   void gotoNormalModeWithCatchupAndSaving();
@@ -142,6 +153,7 @@ class Ui {
   FeatureMode feat_mode_;
   uint8_t padding[3];
   WaveBank bank_[4];
+  int8_t classic_waveform_index_[4];
   uint8_t random_waveform_index_[4];
   uint16_t pot_fine_value_[4];
   uint16_t pot_level_value_[4];

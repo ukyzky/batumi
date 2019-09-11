@@ -348,7 +348,7 @@ void Processor::Process() {
 
   LfoShape shape[4];
   for (int i=0; i<4; i++) {
-    int ui_shape = ui_->shape();
+    int ui_shape = ui_->shape(i);
     uint8_t offset = 0;
     switch (ui_->bank(i)) {
     case BANK_CLASSIC:

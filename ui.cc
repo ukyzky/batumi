@@ -312,7 +312,9 @@ void Ui::OnPotChanged(const Event& e) {
     break;
 
   case UI_MODE_WAVEBANK_SELECT:
-    selectRandomWaveformFromPot(e.control_id, e.data);
+    // selectRandomWaveformFromPot(e.control_id, e.data);
+    // Expanded: Classic waveform in Individual Wavebank mode.
+    selectWaveformFromPot(e.control_id, e.data);
     break;
   }
 }
@@ -340,6 +342,35 @@ void Ui::selectRandomWaveformFromPot(uint16_t id, int32_t potVal)
   }
   else {
     random_waveform_index_[id] = pos - 1;
+    bank_[id] = BANK_RANDOM;
+  }
+}
+
+void Ui::selectWaveformFromPot(uint16_t id, int32_t potVal)
+{
+  static const uint16_t tbl_waveformSelectionThreshold[] = {
+    9000, 18000, 27000, 36000, 45000, 54000, 63000
+  };
+  static const int size_table = sizeof(tbl_waveformSelectionThreshold) / sizeof(tbl_waveformSelectionThreshold[0]);
+
+  uint8_t pos = 7;
+  for (uint8_t i=0; i<size_table; i++) {
+    if (potVal < tbl_waveformSelectionThreshold[i]) {
+      pos = i;
+      break;
+    }
+  }
+
+  CONSTRAIN(pos, 0, 7);
+
+  if (pos < 4) {
+    random_waveform_index_[id] = 0;
+    classic_waveform_index_[id] = pos;
+    bank_[id] = BANK_CLASSIC;
+  }
+  else {
+    random_waveform_index_[id] = pos - 4;
+    classic_waveform_index_[id] = 0;
     bank_[id] = BANK_RANDOM;
   }
 }
