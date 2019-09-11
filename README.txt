@@ -187,3 +187,38 @@ There are two exceptions to this assignment, to avoid redundancy:
   Slider 2 sets the division value (from 1 to 8).
 - In Phase mode, the phase is already set by the main parameter, so
   Slider 4 allows to divide the frequency (from 1 to 8).
+
+Batumi custom firmware by ukyzky documentation
+==============================================
+
+File: batumi-aiw-ukyzky-v010.bin
+
+Based on amazing Batumi alternate individual waveform firmware,
+new feature is:
+
+- In Divide mode, slider can set divide and multiply. center position
+  is initial. upper position becomes multiply, and lower position
+  becomes divide.
+
+- In Individual Waveform mode, slider can set classic wave and random
+  wave. 4 random wave in upper position and 4 classic wave in lower
+  position. Before set waveform in this mode, random waveform is
+  decided by jumper/Poti. After set waveform in this mode, jumper/
+  Poti setting is ignored.
+
+Special thanks
+--------------
+
+polyshaft (moddict)
+
+Roadmap (currently not PoC nor implemented)
+-------------------------------------------
+
+- In Free mode with Syncing from CV input, slider can set divide and
+  multiply.
+
+- Wavefold mode. Like Free mode behavior. Freq CV input can set
+  wavefold amount.
+
+- QuadWavefold mode. Like Phase mode behavior. Based on ch.1 signal,
+  ch.2-4 slider can set wavefold amount.
